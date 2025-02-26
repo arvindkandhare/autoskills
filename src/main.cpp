@@ -15,17 +15,33 @@ pros::Motor High_scoring(20);
 pros::Motor intake_lower(21);
 pros::Motor intake_upper(13);
 
-pros::ADIDigitalOut mogo_p('F');
-pros::ADIDigitalOut ejection_p('A');
+pros::adi::DigitalOut mogo_p('F');
+pros::adi::DigitalOut ejection_p('A');
 
-pros::ADIDigitalOut donker('H');
+pros::adi::DigitalOut donker('H');
 
-pros::ADIDigitalOut intake_p('D');
+pros::adi::DigitalOut intake_p('D');
 
 pros::Rotation rotational_sensor(-19);
 
-pros::Rotation left_rotational_sensor(-7);
+pros::Rotation left_rotational_sensor(7);
 pros::Rotation right_rotational_sensor(6);
+
+
+pros::Imu imu(11);
+
+// horizontal tracking wheel
+lemlib::TrackingWheel left_tracking_wheel(&left_rotational_sensor, lemlib::Omniwheel::NEW_275, -7.75);
+// vertical tracking wheel
+lemlib::TrackingWheel right_tracking_wheel(&right_rotational_sensor, lemlib::Omniwheel::NEW_275, 7.75);
+
+
+lemlib::OdomSensors sensors(&left_tracking_wheel, // vertical tracking wheel 1, set to null
+    &right_tracking_wheel, // vertical tracking wheel 2, set to nullptr as we are using IMEs
+    nullptr, // horizontal tracking wheel 1
+    nullptr, // horizontal tracking wheel 2, set to nullptr as we don't have a second one
+    &imu // inertial sensor
+);
 
 // ...existing code...
 /**
@@ -45,6 +61,47 @@ void on_center_button() {
 		ejection_p.set_value(false);
 	}
 
+// lateral PID controller
+lemlib::ControllerSettings lateral_controller(10, // proportional gain (kP)
+                                              0, // integral gain (kI)
+                                              3, // derivative gain (kD)
+                                              3, // anti windup
+                                              1, // small error range, in inches
+                                              100, // small error range timeout, in milliseconds
+                                              3, // large error range, in inches
+                                              500, // large error range timeout, in milliseconds
+                                              20 // maximum acceleration (slew)
+);
+
+// angular PID controller
+lemlib::ControllerSettings angular_controller(2, // proportional gain (kP)
+                                              0, // integral gain (kI)
+                                              10, // derivative gain (kD)
+                                              3, // anti windup
+                                              1, // small error range, in degrees
+                                              100, // small error range timeout, in milliseconds
+                                              3, // large error range, in degrees
+                                              500, // large error range timeout, in milliseconds
+                                              0 // maximum acceleration (slew)
+);
+
+
+// drivetrain settings
+lemlib::Drivetrain drivetrain(&left_drive_smart, // left motor group
+    &right_drive_smart, // right motor group
+    13.5, // 10 inch track width
+    lemlib::Omniwheel::NEW_275, // using new 2.75" omnis
+    450, // drivetrain rpm is 450
+    2 // horizontal drift is 2 (for now)
+);
+
+// create the chassis
+lemlib::Chassis chassis(drivetrain, // drivetrain settings
+    lateral_controller, // lateral PID settings
+    angular_controller, // angular PID settings
+    sensors // odometry sensors
+);
+
 /**
  * Runs initialization code. This occurs as soon as the program is started.
  *
@@ -61,6 +118,17 @@ void initialize() {
 	rotational_sensor.reset_position();
 	left_rotational_sensor.reset_position();
 	right_rotational_sensor.reset_position();
+	chassis.calibrate(); // calibrate sensors
+	printf("Calibrated\n");
+	// print position to brain screen
+	pros::Task screen_task([&]()
+						   {
+		while (true) {
+			// print robot location to the brain screen
+			printf("X: %f, Y:%f, @:%f \n", chassis.getPose().x, chassis.getPose().y, chassis.getPose().theta);		   // x
+			// delay to save resources
+			pros::delay(20);
+		} });
 }
 
 /**
@@ -92,7 +160,23 @@ void competition_initialize() {}
  * will be stopped. Re-enabling the robot will restart the task, not re-start it
  * from where it left off.
  */
-void autonomous() {}
+// path file name is "example.txt".
+// "." is replaced with "_" to overcome c++ limitations
+ASSET(example_txt);
+ASSET(emptymogo1_txt);
+ASSET(crazypaathx1_txt);
+ASSET(lemlibsample_txt);
+ASSET(right45_txt);
+ASSET(left90_txt);
+
+void autonomous() {
+	// set chassis pose
+    chassis.setPose(-59.007, -1.12, 90);
+    // lookahead distance: 15 inches
+    // timeout: 2000 ms
+    chassis.follow(lemlibsample_txt, 13, 60000, true, false);
+    // follow the next path, but with the robot going backwards
+}
 
 /**
  * Runs the operator control code. This function will be started in its own task
