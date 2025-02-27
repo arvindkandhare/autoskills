@@ -62,26 +62,26 @@ void on_center_button() {
 	}
 
 // lateral PID controller
-lemlib::ControllerSettings lateral_controller(10, // proportional gain (kP)
+lemlib::ControllerSettings lateral_controller(30, // proportional gain (kP)
                                               0, // integral gain (kI)
-                                              3, // derivative gain (kD)
-                                              3, // anti windup
-                                              1, // small error range, in inches
-                                              100, // small error range timeout, in milliseconds
-                                              3, // large error range, in inches
-                                              500, // large error range timeout, in milliseconds
-                                              20 // maximum acceleration (slew)
+                                              15, // derivative gain (kD)
+                                              0, // anti windup
+                                              0, // small error range, in inches
+                                              0, // small error range timeout, in milliseconds
+                                              0, // large error range, in inches
+                                              0, // large error range timeout, in milliseconds
+                                              0 // maximum acceleration (slew)
 );
 
 // angular PID controller
-lemlib::ControllerSettings angular_controller(2, // proportional gain (kP)
+lemlib::ControllerSettings angular_controller(25, // proportional gain (kP)
                                               0, // integral gain (kI)
-                                              10, // derivative gain (kD)
-                                              3, // anti windup
-                                              1, // small error range, in degrees
-                                              100, // small error range timeout, in milliseconds
-                                              3, // large error range, in degrees
-                                              500, // large error range timeout, in milliseconds
+                                              9, // derivative gain (kD)
+                                              0, // anti windup
+                                              0, // small error range, in inches
+                                              0, // small error range timeout, in milliseconds
+                                              0, // large error range, in inches
+                                              0, // large error range timeout, in milliseconds
                                               0 // maximum acceleration (slew)
 );
 
@@ -170,12 +170,10 @@ ASSET(right45_txt);
 ASSET(left90_txt);
 
 void autonomous() {
-	// set chassis pose
-    chassis.setPose(-59.007, -1.12, 90);
-    // lookahead distance: 15 inches
-    // timeout: 2000 ms
-    chassis.follow(lemlibsample_txt, 13, 60000, true, false);
-    // follow the next path, but with the robot going backwards
+	// set position to x:0, y:0, heading:0
+    chassis.setPose(0, 200, 0);
+    // move 48" forwards
+    chassis.moveToPoint(0, 150, 10000, {.forwards = false});
 }
 
 /**
