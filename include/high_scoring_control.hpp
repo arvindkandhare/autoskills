@@ -8,9 +8,9 @@
 namespace HighScoringPositions {
     // Position values in degrees
     const double GROUND = 0.0;     // Position when the mechanism is at ground level
-    const double CAPTURE = 90.0;   // Position for capturing game objects (needs to be exact)
-    const double WAIT = 180.0;     // Waiting position
-    const double SCORE = 270.0;    // Position for scoring
+    const double CAPTURE = 15.0;   // Position for capturing game objects (needs to be exact)
+    const double WAIT = 120.0;     // Waiting position
+    const double SCORE = 380.0;    // Position for scoring
 }
 
 // Enum to make position selection more readable

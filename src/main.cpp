@@ -223,13 +223,17 @@ void autonomous() {
  * task, not resume it from where it left off.
  */
 void opcontrol() {
+	// Main controller for driving
 	pros::Controller master(pros::E_CONTROLLER_MASTER);
+	
+	// Partner controller for High Scoring mechanism
+	pros::Controller partner(pros::E_CONTROLLER_PARTNER);
 
 	// Variables to track button states to detect button presses
-	bool btnL1_pressed = false;
-	bool btnL2_pressed = false;
-	bool btnR1_pressed = false;
-	bool btnR2_pressed = false;
+	bool btnUp_pressed = false;
+	bool btnDown_pressed = false;
+	bool btnLeft_pressed = false;
+	bool btnRight_pressed = false;
 
 	// Print current position of the High Scoring mechanism
 	pros::Task position_display_task([&]() {
@@ -245,52 +249,52 @@ void opcontrol() {
 		                 (pros::lcd::read_buttons() & LCD_BTN_CENTER) >> 1,
 		                 (pros::lcd::read_buttons() & LCD_BTN_RIGHT) >> 0);  // Prints status of the emulated screen LCDs
 
-		// Arcade control scheme for driving
+		// Arcade control scheme for driving (using master controller)
 		int dir = master.get_analog(ANALOG_LEFT_Y);    // Gets amount forward/backward from left joystick
 		int turn = master.get_analog(ANALOG_RIGHT_X);  // Gets the turn left/right from right joystick
 		left_drive_smart.move(dir - turn);             // Sets left motor voltage
 		right_drive_smart.move(dir + turn);            // Sets right motor voltage
 
-		// Check for button presses to control the High Scoring mechanism
+		// Check for button presses to control the High Scoring mechanism (using partner controller)
 		
-		// L1 button: Move to GROUND position
-		if (master.get_digital(DIGITAL_L1) && !btnL1_pressed) {
-			btnL1_pressed = true;
+		// UP button: Move to GROUND position
+		if (partner.get_digital(DIGITAL_UP) && !btnUp_pressed) {
+			btnUp_pressed = true;
 			moveHighScoringToPosition(HighScoringPosition::GROUND, false);
 			pros::lcd::print(2, "Moving to GROUND position");
-		} else if (!master.get_digital(DIGITAL_L1)) {
-			btnL1_pressed = false;
+		} else if (!partner.get_digital(DIGITAL_UP)) {
+			btnUp_pressed = false;
 		}
 		
-		// L2 button: Move to CAPTURE position (precise)
-		if (master.get_digital(DIGITAL_L2) && !btnL2_pressed) {
-			btnL2_pressed = true;
+		// DOWN button: Move to CAPTURE position (precise)
+		if (partner.get_digital(DIGITAL_DOWN) && !btnDown_pressed) {
+			btnDown_pressed = true;
 			moveHighScoringToPosition(HighScoringPosition::CAPTURE, false);
 			pros::lcd::print(2, "Moving to CAPTURE position");
-		} else if (!master.get_digital(DIGITAL_L2)) {
-			btnL2_pressed = false;
+		} else if (!partner.get_digital(DIGITAL_DOWN)) {
+			btnDown_pressed = false;
 		}
 		
-		// R1 button: Move to WAIT position
-		if (master.get_digital(DIGITAL_R1) && !btnR1_pressed) {
-			btnR1_pressed = true;
+		// LEFT button: Move to WAIT position
+		if (partner.get_digital(DIGITAL_LEFT) && !btnLeft_pressed) {
+			btnLeft_pressed = true;
 			moveHighScoringToPosition(HighScoringPosition::WAIT, false);
 			pros::lcd::print(2, "Moving to WAIT position");
-		} else if (!master.get_digital(DIGITAL_R1)) {
-			btnR1_pressed = false;
+		} else if (!partner.get_digital(DIGITAL_LEFT)) {
+			btnLeft_pressed = false;
 		}
 		
-		// R2 button: Move to SCORE position
-		if (master.get_digital(DIGITAL_R2) && !btnR2_pressed) {
-			btnR2_pressed = true;
+		// RIGHT button: Move to SCORE position
+		if (partner.get_digital(DIGITAL_RIGHT) && !btnRight_pressed) {
+			btnRight_pressed = true;
 			moveHighScoringToPosition(HighScoringPosition::SCORE, false);
 			pros::lcd::print(2, "Moving to SCORE position");
-		} else if (!master.get_digital(DIGITAL_R2)) {
-			btnR2_pressed = false;
+		} else if (!partner.get_digital(DIGITAL_RIGHT)) {
+			btnRight_pressed = false;
 		}
 
-		// Manual control of the High Scoring mechanism using the right joystick Y axis
-		int high_scoring_manual = master.get_analog(ANALOG_RIGHT_Y);
+		// Manual control of the High Scoring mechanism using the partner controller's right joystick Y axis
+		int high_scoring_manual = partner.get_analog(ANALOG_RIGHT_Y);
 		if (std::abs(high_scoring_manual) > 10) {  // Small deadzone
 			// Manual control overrides automatic positioning
 			High_scoring.move(high_scoring_manual);
