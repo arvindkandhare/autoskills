@@ -1,5 +1,6 @@
 #include "main.h"
 #include "lemlib/api.hpp" // IWYU pragma: keep
+#include "high_scoring_control.hpp"
 
 pros::Motor left_motor_a(2);
 pros::Motor left_motor_b(3);
@@ -66,10 +67,10 @@ lemlib::ControllerSettings lateral_controller(30, // proportional gain (kP)
                                               0, // integral gain (kI)
                                               15, // derivative gain (kD)
                                               0, // anti windup
-                                              0, // small error range, in inches
-                                              0, // small error range timeout, in milliseconds
-                                              0, // large error range, in inches
-                                              0, // large error range timeout, in milliseconds
+                                              1, // small error range, in inches
+                                              20, // small error range timeout, in milliseconds
+                                              10, // large error range, in inches
+                                              1000, // large error range timeout, in milliseconds
                                               0 // maximum acceleration (slew)
 );
 
@@ -78,10 +79,10 @@ lemlib::ControllerSettings angular_controller(25, // proportional gain (kP)
                                               0, // integral gain (kI)
                                               9, // derivative gain (kD)
                                               0, // anti windup
-                                              0, // small error range, in inches
-                                              0, // small error range timeout, in milliseconds
-                                              0, // large error range, in inches
-                                              0, // large error range timeout, in milliseconds
+                                              1, // small error range, in inches
+                                              20, // small error range timeout, in milliseconds
+                                              10, // large error range, in inches
+                                              1000, // large error range timeout, in milliseconds
                                               0 // maximum acceleration (slew)
 );
 
@@ -168,12 +169,44 @@ ASSET(crazypaathx1_txt);
 ASSET(lemlibsample_txt);
 ASSET(right45_txt);
 ASSET(left90_txt);
+ASSET(p1_txt);
+ASSET(p2_txt);
 
 void autonomous() {
-	// set position to x:0, y:0, heading:0
-    chassis.setPose(0, 200, 0);
-    // move 48" forwards
-    chassis.moveToPoint(0, 150, 10000, {.forwards = false});
+    // Set chassis pose
+    chassis.setPose(-59.007, -1.12, 90);
+    
+    // Start with the High Scoring mechanism in the GROUND position
+    moveHighScoringToPosition(HighScoringPosition::GROUND, true);
+    pros::lcd::print(2, "Moving to GROUND position");
+    
+    // Follow the first path
+    chassis.follow(p1_txt, 3, 60000, true, false);
+    
+    // Move to CAPTURE position (precise positioning)
+    moveHighScoringToPosition(HighScoringPosition::CAPTURE, true);
+    pros::lcd::print(2, "Moving to CAPTURE position");
+    
+    // Wait for a moment to simulate capturing a game object
+    pros::delay(500);
+    
+    // Move to WAIT position
+    moveHighScoringToPosition(HighScoringPosition::WAIT, true);
+    pros::lcd::print(2, "Moving to WAIT position");
+    
+    // Follow the second path
+    chassis.follow(p2_txt, 3, 60000, false, false);
+    
+    // Move to SCORE position
+    moveHighScoringToPosition(HighScoringPosition::SCORE, true);
+    pros::lcd::print(2, "Moving to SCORE position");
+    
+    // Wait for a moment to simulate scoring
+    pros::delay(500);
+    
+    // Return to GROUND position
+    moveHighScoringToPosition(HighScoringPosition::GROUND, true);
+    pros::lcd::print(2, "Moving to GROUND position");
 }
 
 /**
@@ -192,17 +225,78 @@ void autonomous() {
 void opcontrol() {
 	pros::Controller master(pros::E_CONTROLLER_MASTER);
 
+	// Variables to track button states to detect button presses
+	bool btnL1_pressed = false;
+	bool btnL2_pressed = false;
+	bool btnR1_pressed = false;
+	bool btnR2_pressed = false;
+
+	// Print current position of the High Scoring mechanism
+	pros::Task position_display_task([&]() {
+		while (true) {
+			// Print the current angle of the High Scoring mechanism
+			pros::lcd::print(1, "High Scoring Angle: %.2f", getHighScoringAngle());
+			pros::delay(100);
+		}
+	});
 
 	while (true) {
 		pros::lcd::print(0, "%d %d %d", (pros::lcd::read_buttons() & LCD_BTN_LEFT) >> 2,
 		                 (pros::lcd::read_buttons() & LCD_BTN_CENTER) >> 1,
 		                 (pros::lcd::read_buttons() & LCD_BTN_RIGHT) >> 0);  // Prints status of the emulated screen LCDs
 
-		// Arcade control scheme
+		// Arcade control scheme for driving
 		int dir = master.get_analog(ANALOG_LEFT_Y);    // Gets amount forward/backward from left joystick
 		int turn = master.get_analog(ANALOG_RIGHT_X);  // Gets the turn left/right from right joystick
-		left_drive_smart.move(dir - turn);                      // Sets left motor voltage
-		right_drive_smart.move(dir + turn);                     // Sets right motor voltage
-		pros::delay(20);                               // Run for 20 ms then update
+		left_drive_smart.move(dir - turn);             // Sets left motor voltage
+		right_drive_smart.move(dir + turn);            // Sets right motor voltage
+
+		// Check for button presses to control the High Scoring mechanism
+		
+		// L1 button: Move to GROUND position
+		if (master.get_digital(DIGITAL_L1) && !btnL1_pressed) {
+			btnL1_pressed = true;
+			moveHighScoringToPosition(HighScoringPosition::GROUND, false);
+			pros::lcd::print(2, "Moving to GROUND position");
+		} else if (!master.get_digital(DIGITAL_L1)) {
+			btnL1_pressed = false;
+		}
+		
+		// L2 button: Move to CAPTURE position (precise)
+		if (master.get_digital(DIGITAL_L2) && !btnL2_pressed) {
+			btnL2_pressed = true;
+			moveHighScoringToPosition(HighScoringPosition::CAPTURE, false);
+			pros::lcd::print(2, "Moving to CAPTURE position");
+		} else if (!master.get_digital(DIGITAL_L2)) {
+			btnL2_pressed = false;
+		}
+		
+		// R1 button: Move to WAIT position
+		if (master.get_digital(DIGITAL_R1) && !btnR1_pressed) {
+			btnR1_pressed = true;
+			moveHighScoringToPosition(HighScoringPosition::WAIT, false);
+			pros::lcd::print(2, "Moving to WAIT position");
+		} else if (!master.get_digital(DIGITAL_R1)) {
+			btnR1_pressed = false;
+		}
+		
+		// R2 button: Move to SCORE position
+		if (master.get_digital(DIGITAL_R2) && !btnR2_pressed) {
+			btnR2_pressed = true;
+			moveHighScoringToPosition(HighScoringPosition::SCORE, false);
+			pros::lcd::print(2, "Moving to SCORE position");
+		} else if (!master.get_digital(DIGITAL_R2)) {
+			btnR2_pressed = false;
+		}
+
+		// Manual control of the High Scoring mechanism using the right joystick Y axis
+		int high_scoring_manual = master.get_analog(ANALOG_RIGHT_Y);
+		if (std::abs(high_scoring_manual) > 10) {  // Small deadzone
+			// Manual control overrides automatic positioning
+			High_scoring.move(high_scoring_manual);
+			pros::lcd::print(2, "Manual control: %d", high_scoring_manual);
+		}
+		
+		pros::delay(20);  // Run for 20 ms then update
 	}
 }
