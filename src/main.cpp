@@ -249,11 +249,11 @@ void opcontrol() {
 		                 (pros::lcd::read_buttons() & LCD_BTN_CENTER) >> 1,
 		                 (pros::lcd::read_buttons() & LCD_BTN_RIGHT) >> 0);  // Prints status of the emulated screen LCDs
 
-		// Arcade control scheme for driving (using master controller)
-		int dir = master.get_analog(ANALOG_LEFT_Y);    // Gets amount forward/backward from left joystick
-		int turn = master.get_analog(ANALOG_RIGHT_X);  // Gets the turn left/right from right joystick
-		left_drive_smart.move(dir - turn);             // Sets left motor voltage
-		right_drive_smart.move(dir + turn);            // Sets right motor voltage
+		// Tank control scheme for driving (using master controller)
+		int left_power = master.get_analog(ANALOG_LEFT_Y);    // Gets left side power from left joystick
+		int right_power = master.get_analog(ANALOG_RIGHT_Y);  // Gets right side power from right joystick
+		left_drive_smart.move(left_power);                    // Sets left motor voltage
+		right_drive_smart.move(right_power);                  // Sets right motor voltage
 
 		// Check for button presses to control the High Scoring mechanism (using partner controller)
 		
