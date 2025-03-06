@@ -25,20 +25,20 @@ pros::adi::DigitalOut intake_p('D');
 
 pros::Rotation rotational_sensor(-19);
 
-pros::Rotation left_rotational_sensor(7);
-pros::Rotation right_rotational_sensor(6);
+pros::Rotation vertical_rotational_sensor(10);
+pros::Rotation horizontal_rotational_sensor(-1);
 
 
 pros::Imu imu(11);
 
 // horizontal tracking wheel
-lemlib::TrackingWheel left_tracking_wheel(&left_rotational_sensor, lemlib::Omniwheel::NEW_275, -7.75);
+lemlib::TrackingWheel vertical_tracking_wheel(&vertical_rotational_sensor, lemlib::Omniwheel::NEW_2, 0.5);
 // vertical tracking wheel
-lemlib::TrackingWheel right_tracking_wheel(&right_rotational_sensor, lemlib::Omniwheel::NEW_275, 7.75);
+lemlib::TrackingWheel horizontal_tracking_wheel(&horizontal_rotational_sensor, lemlib::Omniwheel::NEW_2, 7.75);
 
 
-lemlib::OdomSensors sensors(&left_tracking_wheel, // vertical tracking wheel 1, set to null
-    &right_tracking_wheel, // vertical tracking wheel 2, set to nullptr as we are using IMEs
+lemlib::OdomSensors sensors(&vertical_tracking_wheel, // vertical tracking wheel 1, set to null
+    &horizontal_tracking_wheel, // vertical tracking wheel 2, set to nullptr as we are using IMEs
     nullptr, // horizontal tracking wheel 1
     nullptr, // horizontal tracking wheel 2, set to nullptr as we don't have a second one
     &imu // inertial sensor
@@ -93,7 +93,7 @@ lemlib::Drivetrain drivetrain(&left_drive_smart, // left motor group
     13.5, // 10 inch track width
     lemlib::Omniwheel::NEW_275, // using new 2.75" omnis
     450, // drivetrain rpm is 450
-    2 // horizontal drift is 2 (for now)
+    6 // horizontal drift is 2 (for now)
 );
 
 // create the chassis
@@ -117,8 +117,8 @@ void initialize() {
 	pros::lcd::register_btn1_cb(on_center_button);
 	donker.set_value(false);
 	rotational_sensor.reset_position();
-	left_rotational_sensor.reset_position();
-	right_rotational_sensor.reset_position();
+	vertical_rotational_sensor.reset_position();
+	horizontal_rotational_sensor.reset_position();
 	chassis.calibrate(); // calibrate sensors
 	printf("Calibrated\n");
 	// print position to brain screen
@@ -126,9 +126,9 @@ void initialize() {
 						   {
 		while (true) {
 			// print robot location to the brain screen
-			printf("X: %f, Y:%f, @:%f \n", chassis.getPose().x, chassis.getPose().y, chassis.getPose().theta);		   // x
+			 printf("X: %f, Y:%f, @:%f \n", chassis.getPose().x, chassis.getPose().y, chassis.getPose().theta);		   // x
 			// delay to save resources
-			pros::delay(20);
+			pros::delay(100);
 		} });
 }
 
@@ -176,37 +176,52 @@ void autonomous() {
     // Set chassis pose
     chassis.setPose(-59.007, -1.12, 90);
     
-    // Start with the High Scoring mechanism in the GROUND position
+    /* Start with the High Scoring mechanism in the GROUND position
     moveHighScoringToPosition(HighScoringPosition::GROUND, true);
     pros::lcd::print(2, "Moving to GROUND position");
-    
+    */
     // Follow the first path
-    chassis.follow(p1_txt, 3, 60000, true, false);
+	// Follow the first path
+    printf("Following first path\n");
+	printf("Starting position: X: %f, Y: %f, Theta: %f\n", 
+           chassis.getPose().x, chassis.getPose().y, chassis.getPose().theta);
     
-    // Move to CAPTURE position (precise positioning)
+    chassis.follow(p1_txt, 3, 60000, true, false);
+    printf("Finished first path\n");
+    printf("Position after p1: X: %f, Y: %f, Theta: %f\n", 
+           chassis.getPose().x, chassis.getPose().y, chassis.getPose().theta);
+     
+    
+    /* Move to CAPTURE position (precise positioning)
     moveHighScoringToPosition(HighScoringPosition::CAPTURE, true);
     pros::lcd::print(2, "Moving to CAPTURE position");
-    
+    */
     // Wait for a moment to simulate capturing a game object
-    pros::delay(500);
+    pros::delay(1000);
     
-    // Move to WAIT position
+    /** Move to WAIT position
     moveHighScoringToPosition(HighScoringPosition::WAIT, true);
     pros::lcd::print(2, "Moving to WAIT position");
+	*/
     
     // Follow the second path
-    chassis.follow(p2_txt, 3, 60000, false, false);
-    
+	printf("Following second path\n");
+    chassis.follow(p2_txt, 5, 60000, false, false);
+    printf("Finished second path\n");
+	 printf("Final position: X: %f, Y: %f, Theta: %f\n", 
+           chassis.getPose().x, chassis.getPose().y, chassis.getPose().theta);
+   
+	/*
     // Move to SCORE position
     moveHighScoringToPosition(HighScoringPosition::SCORE, true);
     pros::lcd::print(2, "Moving to SCORE position");
-    
     // Wait for a moment to simulate scoring
     pros::delay(500);
     
     // Return to GROUND position
     moveHighScoringToPosition(HighScoringPosition::GROUND, true);
     pros::lcd::print(2, "Moving to GROUND position");
+   */ 
 }
 
 /**
@@ -226,9 +241,6 @@ void opcontrol() {
 	// Main controller for driving
 	pros::Controller master(pros::E_CONTROLLER_MASTER);
 	
-	// Partner controller for High Scoring mechanism
-	pros::Controller partner(pros::E_CONTROLLER_PARTNER);
-
 	// Variables to track button states to detect button presses
 	bool btnUp_pressed = false;
 	bool btnDown_pressed = false;
@@ -239,15 +251,16 @@ void opcontrol() {
 	pros::Task position_display_task([&]() {
 		while (true) {
 			// Print the current angle of the High Scoring mechanism
-			pros::lcd::print(1, "High Scoring Angle: %.2f", getHighScoringAngle());
+			printf("High Scoring Angle: %.2f\n", getHighScoringAngle());
 			pros::delay(100);
 		}
 	});
 
 	while (true) {
-		pros::lcd::print(0, "%d %d %d", (pros::lcd::read_buttons() & LCD_BTN_LEFT) >> 2,
+		/*printf("%d %d %d", (pros::lcd::read_buttons() & LCD_BTN_LEFT) >> 2,
 		                 (pros::lcd::read_buttons() & LCD_BTN_CENTER) >> 1,
 		                 (pros::lcd::read_buttons() & LCD_BTN_RIGHT) >> 0);  // Prints status of the emulated screen LCDs
+						 */
 
 		// Tank control scheme for driving (using master controller)
 		int left_power = master.get_analog(ANALOG_LEFT_Y);    // Gets left side power from left joystick
@@ -255,50 +268,53 @@ void opcontrol() {
 		left_drive_smart.move(left_power);                    // Sets left motor voltage
 		right_drive_smart.move(right_power);                  // Sets right motor voltage
 
-		// Check for button presses to control the High Scoring mechanism (using partner controller)
+		// Check for button presses to control the High Scoring mechanism (using master controller)
 		
 		// UP button: Move to GROUND position
-		if (partner.get_digital(DIGITAL_UP) && !btnUp_pressed) {
+		if (master.get_digital(DIGITAL_UP) && !btnUp_pressed) {
 			btnUp_pressed = true;
 			moveHighScoringToPosition(HighScoringPosition::GROUND, false);
-			pros::lcd::print(2, "Moving to GROUND position");
-		} else if (!partner.get_digital(DIGITAL_UP)) {
+			printf("Moving to GROUND position\n");
+		} else if (!master.get_digital(DIGITAL_UP)) {
 			btnUp_pressed = false;
 		}
 		
 		// DOWN button: Move to CAPTURE position (precise)
-		if (partner.get_digital(DIGITAL_DOWN) && !btnDown_pressed) {
+		if (master.get_digital(DIGITAL_DOWN) && !btnDown_pressed) {
 			btnDown_pressed = true;
 			moveHighScoringToPosition(HighScoringPosition::CAPTURE, false);
-			pros::lcd::print(2, "Moving to CAPTURE position");
-		} else if (!partner.get_digital(DIGITAL_DOWN)) {
+			printf("Moving to CAPTURE position");
+		} else if (!master.get_digital(DIGITAL_DOWN)) {
 			btnDown_pressed = false;
 		}
 		
 		// LEFT button: Move to WAIT position
-		if (partner.get_digital(DIGITAL_LEFT) && !btnLeft_pressed) {
+		if (master.get_digital(DIGITAL_LEFT) && !btnLeft_pressed) {
 			btnLeft_pressed = true;
 			moveHighScoringToPosition(HighScoringPosition::WAIT, false);
-			pros::lcd::print(2, "Moving to WAIT position");
-		} else if (!partner.get_digital(DIGITAL_LEFT)) {
+			printf("Moving to WAIT position");
+		} else if (!master.get_digital(DIGITAL_LEFT)) {
 			btnLeft_pressed = false;
 		}
 		
 		// RIGHT button: Move to SCORE position
-		if (partner.get_digital(DIGITAL_RIGHT) && !btnRight_pressed) {
+		if (master.get_digital(DIGITAL_RIGHT) && !btnRight_pressed) {
 			btnRight_pressed = true;
 			moveHighScoringToPosition(HighScoringPosition::SCORE, false);
-			pros::lcd::print(2, "Moving to SCORE position");
-		} else if (!partner.get_digital(DIGITAL_RIGHT)) {
+			printf("Moving to SCORE position");
+		} else if (!master.get_digital(DIGITAL_RIGHT)) {
 			btnRight_pressed = false;
 		}
 
-		// Manual control of the High Scoring mechanism using the partner controller's right joystick Y axis
-		int high_scoring_manual = partner.get_analog(ANALOG_RIGHT_Y);
+		// Manual control of the High Scoring mechanism using the master controller's right joystick Y axis
+		int high_scoring_manual = master.get_analog(ANALOG_RIGHT_Y);
 		if (std::abs(high_scoring_manual) > 10) {  // Small deadzone
-			// Manual control overrides automatic positioning
+			// Stop the automatic control task when manual control is detected
+			stopHighScoringTask();
+			
+			// Apply manual control
 			High_scoring.move(high_scoring_manual);
-			pros::lcd::print(2, "Manual control: %d", high_scoring_manual);
+			printf("Manual control: %d", high_scoring_manual);
 		}
 		
 		pros::delay(20);  // Run for 20 ms then update

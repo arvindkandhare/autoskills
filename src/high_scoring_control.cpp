@@ -4,6 +4,16 @@
 extern pros::Motor High_scoring;
 extern pros::Rotation rotational_sensor;
 
+// Global variables for the background task
+double g_target_angle = 0.0;
+bool g_precise_mode = false;
+bool g_task_running = false;
+pros::Task* g_high_scoring_task = nullptr;
+
+// Function prototypes
+void highScoringTaskFn(void* param);
+void stopHighScoringTask();
+
 /**
  * Gets the current angle of the High Scoring mechanism
  * 
@@ -14,19 +24,28 @@ double getHighScoringAngle() {
 }
 
 /**
- * Moves the High Scoring mechanism to a specific angle using PID control
- * 
- * @param target_angle The target angle in degrees
- * @param precise If true, uses more precise PID constants (for capture position)
- * @param wait_for_completion If true, the function will block until the position is reached
- * @return True if the position was reached successfully, false otherwise
+ * Stops the high scoring task if it's running
  */
-bool moveHighScoringToAngle(double target_angle, bool precise, bool wait_for_completion) {
-    // Select PID constants based on precision requirement
-    double kP = precise ? HighScoringPID::KP_CAPTURE : HighScoringPID::KP_GENERAL;
-    double kI = precise ? HighScoringPID::KI_CAPTURE : HighScoringPID::KI_GENERAL;
-    double kD = precise ? HighScoringPID::KD_CAPTURE : HighScoringPID::KD_GENERAL;
-    double threshold = precise ? HighScoringPID::POSITION_THRESHOLD_CAPTURE : HighScoringPID::POSITION_THRESHOLD_GENERAL;
+void stopHighScoringTask() {
+    if (g_high_scoring_task != nullptr) {
+        g_high_scoring_task->remove();
+        delete g_high_scoring_task;
+        g_high_scoring_task = nullptr;
+        g_task_running = false;
+        
+        // Ensure the motor stops
+        High_scoring.brake();
+    }
+}
+
+/**
+ * Task function that continuously adjusts the motor to reach the target angle
+ * 
+ * @param param Unused parameter (required by PROS task API)
+ */
+void highScoringTaskFn(void* param) {
+    // Mark the task as running
+    g_task_running = true;
     
     // PID control variables
     double error = 0;
@@ -35,41 +54,30 @@ bool moveHighScoringToAngle(double target_angle, bool precise, bool wait_for_com
     double derivative = 0;
     double motor_power = 0;
     
-    // Timing variables
-    uint32_t start_time = pros::millis();
-    uint32_t current_time = start_time;
+    // Local copy of the target to detect changes
+    double current_target = g_target_angle;
+    bool current_precise = g_precise_mode;
     
-    // If not waiting for completion, just start the motor moving in the right direction
-    if (!wait_for_completion) {
-        error = target_angle - getHighScoringAngle();
-        motor_power = error * kP;
-        
-        // Limit motor power to prevent excessive speed
-        if (motor_power > 100) motor_power = 100;
-        if (motor_power < -100) motor_power = -100;
-        
-        High_scoring.move_velocity(motor_power);
-        return true;
-    }
-    
-    // Main PID control loop
     while (true) {
-        current_time = pros::millis();
-        
-        // Check for timeout
-        if (current_time - start_time > HighScoringPID::TIMEOUT_MS) {
-            High_scoring.brake();
-            return false;  // Timeout occurred
+        // Check if target has changed
+        if (current_target != g_target_angle || current_precise != g_precise_mode) {
+            // Update local copies
+            current_target = g_target_angle;
+            current_precise = g_precise_mode;
+            
+            // Reset PID variables when target changes
+            integral = 0;
+            prev_error = 0;
         }
+        
+        // Select PID constants based on precision requirement
+        double kP = current_precise ? HighScoringPID::KP_CAPTURE : HighScoringPID::KP_GENERAL;
+        double kI = current_precise ? HighScoringPID::KI_CAPTURE : HighScoringPID::KI_GENERAL;
+        double kD = current_precise ? HighScoringPID::KD_CAPTURE : HighScoringPID::KD_GENERAL;
+        double threshold = current_precise ? HighScoringPID::POSITION_THRESHOLD_CAPTURE : HighScoringPID::POSITION_THRESHOLD_GENERAL;
         
         // Calculate error
-        error = target_angle - getHighScoringAngle();
-        
-        // Check if we've reached the target
-        if (std::abs(error) < threshold) {
-            High_scoring.brake();
-            return true;  // Target reached
-        }
+        error = current_target - getHighScoringAngle();
         
         // Calculate PID components
         integral += error;
@@ -91,6 +99,55 @@ bool moveHighScoringToAngle(double target_angle, bool precise, bool wait_for_com
         // Small delay to prevent hogging CPU
         pros::delay(10);
     }
+}
+
+/**
+ * Moves the High Scoring mechanism to a specific angle using PID control
+ * 
+ * @param target_angle The target angle in degrees
+ * @param precise If true, uses more precise PID constants (for capture position)
+ * @param wait_for_completion If true, the function will block until the position is reached
+ * @return True if the position was reached successfully, false otherwise
+ */
+bool moveHighScoringToAngle(double target_angle, bool precise, bool wait_for_completion) {
+    // Update the global target angle and precision mode
+    g_target_angle = target_angle;
+    g_precise_mode = precise;
+    
+    // Start the task if it's not already running
+    if (!g_task_running) {
+        if (g_high_scoring_task != nullptr) {
+            delete g_high_scoring_task;
+        }
+        g_high_scoring_task = new pros::Task(highScoringTaskFn, nullptr, "HighScoringTask");
+    }
+    
+    // If wait_for_completion is true, wait until the target is reached
+    if (wait_for_completion) {
+        double threshold = precise ? HighScoringPID::POSITION_THRESHOLD_CAPTURE : HighScoringPID::POSITION_THRESHOLD_GENERAL;
+        uint32_t start_time = pros::millis();
+        
+        while (true) {
+            // Check for timeout
+            if (pros::millis() - start_time > HighScoringPID::TIMEOUT_MS) {
+                return false;  // Timeout occurred
+            }
+            
+            // Calculate error
+            double error = target_angle - getHighScoringAngle();
+            
+            // Check if we've reached the target
+            if (std::abs(error) < threshold) {
+                return true;  // Target reached
+            }
+            
+            // Small delay to prevent hogging CPU
+            pros::delay(10);
+        }
+    }
+    
+    // If not waiting for completion, return immediately
+    return true;
 }
 
 /**

@@ -68,4 +68,11 @@ bool moveHighScoringToAngle(double target_angle, bool precise = false, bool wait
  */
 double getHighScoringAngle();
 
+/**
+ * Stops the high scoring task if it's running
+ * Call this when you want to manually control the high scoring mechanism
+ * or when shutting down the robot
+ */
+void stopHighScoringTask();
+
 #endif // HIGH_SCORING_CONTROL_HPP
