@@ -68,33 +68,41 @@ void highScoringTaskFn(void* param) {
             // Reset PID variables when target changes
             integral = 0;
             prev_error = 0;
+            
+            // If not in precise mode, use direct move_absolute instead of PID
+            if (!current_precise) {
+                // Use move_absolute with a reasonable velocity (100)
+                High_scoring.move_absolute(current_target, 100);
+            }
         }
         
-        // Select PID constants based on precision requirement
-        double kP = current_precise ? HighScoringPID::KP_CAPTURE : HighScoringPID::KP_GENERAL;
-        double kI = current_precise ? HighScoringPID::KI_CAPTURE : HighScoringPID::KI_GENERAL;
-        double kD = current_precise ? HighScoringPID::KD_CAPTURE : HighScoringPID::KD_GENERAL;
-        double threshold = current_precise ? HighScoringPID::POSITION_THRESHOLD_CAPTURE : HighScoringPID::POSITION_THRESHOLD_GENERAL;
-        
-        // Calculate error
-        error = current_target - getHighScoringAngle();
-        
-        // Calculate PID components
-        integral += error;
-        derivative = error - prev_error;
-        
-        // Calculate motor power using PID formula
-        motor_power = kP * error + kI * integral + kD * derivative;
-        
-        // Limit motor power to prevent excessive speed
-        if (motor_power > 100) motor_power = 100;
-        if (motor_power < -100) motor_power = -100;
-        
-        // Apply power to the motor
-        High_scoring.move_velocity(motor_power);
-        
-        // Save current error for next iteration
-        prev_error = error;
+        // Only use PID control when in precise mode
+        if (current_precise) {
+            // Select PID constants for precise mode
+            double kP = HighScoringPID::KP_CAPTURE;
+            double kI = HighScoringPID::KI_CAPTURE;
+            double kD = HighScoringPID::KD_CAPTURE;
+            
+            // Calculate error
+            error = current_target - getHighScoringAngle();
+            
+            // Calculate PID components
+            integral += error;
+            derivative = error - prev_error;
+            
+            // Calculate motor power using PID formula
+            motor_power = kP * error + kI * integral + kD * derivative;
+            
+            // Limit motor power to prevent excessive speed
+            if (motor_power > 100) motor_power = 100;
+            if (motor_power < -100) motor_power = -100;
+            
+            // Apply power to the motor
+            High_scoring.move_velocity(motor_power);
+            
+            // Save current error for next iteration
+            prev_error = error;
+        }
         
         // Small delay to prevent hogging CPU
         pros::delay(10);
@@ -102,10 +110,10 @@ void highScoringTaskFn(void* param) {
 }
 
 /**
- * Moves the High Scoring mechanism to a specific angle using PID control
+ * Moves the High Scoring mechanism to a specific angle
  * 
  * @param target_angle The target angle in degrees
- * @param precise If true, uses more precise PID constants (for capture position)
+ * @param precise If true, uses PID control for precise positioning. If false, uses direct motor control.
  * @param wait_for_completion If true, the function will block until the position is reached
  * @return True if the position was reached successfully, false otherwise
  */
@@ -114,12 +122,23 @@ bool moveHighScoringToAngle(double target_angle, bool precise, bool wait_for_com
     g_target_angle = target_angle;
     g_precise_mode = precise;
     
-    // Start the task if it's not already running
-    if (!g_task_running) {
-        if (g_high_scoring_task != nullptr) {
-            delete g_high_scoring_task;
+    // If not using precise mode, we can directly command the motor to move to the absolute position
+    if (!precise) {
+        // Stop any existing task to avoid conflicts
+        if (g_task_running) {
+            stopHighScoringTask();
         }
-        g_high_scoring_task = new pros::Task(highScoringTaskFn, nullptr, "HighScoringTask");
+        
+        // Use move_absolute with a reasonable velocity (100)
+        High_scoring.move_absolute(target_angle, 100);
+    } else {
+        // For precise mode, start the PID control task if it's not already running
+        if (!g_task_running) {
+            if (g_high_scoring_task != nullptr) {
+                delete g_high_scoring_task;
+            }
+            g_high_scoring_task = new pros::Task(highScoringTaskFn, nullptr, "HighScoringTask");
+        }
     }
     
     // If wait_for_completion is true, wait until the target is reached

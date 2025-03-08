@@ -2,15 +2,8 @@
 #include "lemlib/api.hpp" // IWYU pragma: keep
 #include "high_scoring_control.hpp"
 
-pros::Motor left_motor_a(2);
-pros::Motor left_motor_b(3);
-pros::Motor left_motor_c(4);
-pros::Motor right_motor_a(5);
-pros::Motor right_motor_b(12);
-pros::Motor right_motor_c(17);
-
-pros::MotorGroup left_drive_smart({-2, -3, -4});
-pros::MotorGroup right_drive_smart({5, 12, 17});
+pros::MotorGroup left_drive_smart({-2, -3, -4}, pros::v5::MotorGears::blue);
+pros::MotorGroup right_drive_smart({5, 12, 17}, pros::v5::MotorGears::blue);
 
 pros::Motor High_scoring(20);
 pros::Motor intake_lower(21);
@@ -25,16 +18,15 @@ pros::adi::DigitalOut intake_p('D');
 
 pros::Rotation rotational_sensor(-19);
 
-pros::Rotation vertical_rotational_sensor(10);
-pros::Rotation horizontal_rotational_sensor(-1);
+pros::Rotation vertical_rotational_sensor(7);
+pros::Rotation horizontal_rotational_sensor(-6);
 
-
-pros::Imu imu(11);
+pros::Imu imu(9);
 
 // horizontal tracking wheel
 lemlib::TrackingWheel vertical_tracking_wheel(&vertical_rotational_sensor, lemlib::Omniwheel::NEW_2, 0.5);
 // vertical tracking wheel
-lemlib::TrackingWheel horizontal_tracking_wheel(&horizontal_rotational_sensor, lemlib::Omniwheel::NEW_2, 7.75);
+lemlib::TrackingWheel horizontal_tracking_wheel(&horizontal_rotational_sensor, lemlib::Omniwheel::NEW_2, 2.5);
 
 
 lemlib::OdomSensors sensors(&vertical_tracking_wheel, // vertical tracking wheel 1, set to null
@@ -65,7 +57,7 @@ void on_center_button() {
 // lateral PID controller
 lemlib::ControllerSettings lateral_controller(30, // proportional gain (kP)
                                               0, // integral gain (kI)
-                                              15, // derivative gain (kD)
+                                              0, // derivative gain (kD)
                                               0, // anti windup
                                               1, // small error range, in inches
                                               20, // small error range timeout, in milliseconds
@@ -75,14 +67,14 @@ lemlib::ControllerSettings lateral_controller(30, // proportional gain (kP)
 );
 
 // angular PID controller
-lemlib::ControllerSettings angular_controller(25, // proportional gain (kP)
+lemlib::ControllerSettings angular_controller(6, // proportional gain (kP)
                                               0, // integral gain (kI)
-                                              9, // derivative gain (kD)
+                                              33, // derivative gain (kD)
                                               0, // anti windup
-                                              1, // small error range, in inches
-                                              20, // small error range timeout, in milliseconds
-                                              10, // large error range, in inches
-                                              1000, // large error range timeout, in milliseconds
+                                              0, // small error range, in inches
+                                              00, // small error range timeout, in milliseconds
+                                              00, // large error range, in inches
+                                              0000, // large error range timeout, in milliseconds
                                               0 // maximum acceleration (slew)
 );
 
@@ -126,10 +118,12 @@ void initialize() {
 						   {
 		while (true) {
 			// print robot location to the brain screen
-			 printf("X: %f, Y:%f, @:%f \n", chassis.getPose().x, chassis.getPose().y, chassis.getPose().theta);		   // x
+			 printf("X: %f, Y:%f, @:%f @:%f\n", chassis.getPose().x, chassis.getPose().y, chassis.getPose().theta, imu.get_heading());		   // x
 			// delay to save resources
-			pros::delay(100);
+			pros::delay(1000);
 		} });
+
+		//autonomous();
 }
 
 /**
@@ -174,12 +168,14 @@ ASSET(p2_txt);
 
 void autonomous() {
     // Set chassis pose
-    chassis.setPose(-59.007, -1.12, 90);
+    //chassis.setPose(-59.007, -1.12, 90);
+    chassis.setPose(0,0,0);
+	chassis.turnToHeading(90, 100000, {}, false);
     
     /* Start with the High Scoring mechanism in the GROUND position
     moveHighScoringToPosition(HighScoringPosition::GROUND, true);
     pros::lcd::print(2, "Moving to GROUND position");
-    */
+    *
     // Follow the first path
 	// Follow the first path
     printf("Following first path\n");
@@ -197,12 +193,12 @@ void autonomous() {
     pros::lcd::print(2, "Moving to CAPTURE position");
     */
     // Wait for a moment to simulate capturing a game object
-    pros::delay(1000);
+    pros::delay(15000);
     
     /** Move to WAIT position
     moveHighScoringToPosition(HighScoringPosition::WAIT, true);
     pros::lcd::print(2, "Moving to WAIT position");
-	*/
+	*
     
     // Follow the second path
 	printf("Following second path\n");
@@ -306,7 +302,7 @@ void opcontrol() {
 			btnRight_pressed = false;
 		}
 
-		// Manual control of the High Scoring mechanism using the master controller's right joystick Y axis
+		/* Manual control of the High Scoring mechanism using the master controller's right joystick Y axis
 		int high_scoring_manual = master.get_analog(ANALOG_RIGHT_Y);
 		if (std::abs(high_scoring_manual) > 10) {  // Small deadzone
 			// Stop the automatic control task when manual control is detected
@@ -315,7 +311,7 @@ void opcontrol() {
 			// Apply manual control
 			High_scoring.move(high_scoring_manual);
 			printf("Manual control: %d", high_scoring_manual);
-		}
+		}*/
 		
 		pros::delay(20);  // Run for 20 ms then update
 	}
